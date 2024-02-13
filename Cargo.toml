@@ -1,0 +1,16 @@
+[package]
+name = "rustps"
+version = "0.1.0"
+edition = "2021"
+authors = ["Donjuan Platinum <donjuan@lecturify.net>"]
+license = "MIT"
+description = "a tools like procps to show the process information"
+repository = "https://github.com/donjuanplatinum/rustps"
+readme = "README.md"
+documentation = "https://docs.rs/rustps"
+keywords = ["proc","process","cli"]
+categories = ["command-line-utilities"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+algori="0.6.1"
