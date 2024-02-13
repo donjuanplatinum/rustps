@@ -1,7 +1,6 @@
 use std::env;
 use std::fs;
 use std::io;
-use algori::sort::quicksort; // Import quicksort from algori library
 
 fn read_proc_pid(pid: i32, filename: &str) -> io::Result<String> {
     let file_path = format!("/proc/{}/{}", pid, filename);
@@ -18,7 +17,7 @@ fn get_clock_ticks() -> io::Result<f64> {
     clock_ticks.ok_or(io::Error::new(io::ErrorKind::Other, "Failed to read CPU MHz"))
 }
 
-fn search_and_print_process_info(sort_by_mem: bool, clock_ticks: f64) -> io::Result<()> {
+fn search_and_print_process_info(clock_ticks: f64) -> io::Result<()> {
     println!("{:<8} {:<12} {:<8} {}", "PID", "CMD", "RSS (kB)", "CPU (%)");
     let mut processes: Vec<(i32, String, f64, f64)> = Vec::new();
 
@@ -49,10 +48,6 @@ fn search_and_print_process_info(sort_by_mem: bool, clock_ticks: f64) -> io::Res
         }
     }
 
-    if sort_by_mem {
-        quicksort(&mut processes); // Sort the vector based on memory
-    }
-
     for process in processes {
         println!("{:<8} {:<12} {} kB {:.2}%", process.0, process.1, process.2, process.3);
     }
@@ -61,18 +56,10 @@ fn search_and_print_process_info(sort_by_mem: bool, clock_ticks: f64) -> io::Res
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 2 && args[1] == "-m" {
         if let Ok(clock_ticks) = get_clock_ticks() {
-            if let Err(e) = search_and_print_process_info(true, clock_ticks) {
-                eprintln!("Error: {}", e);
-            }
-        }
-    } else {
-        if let Ok(clock_ticks) = get_clock_ticks() {
-            if let Err(e) = search_and_print_process_info(false, clock_ticks) {
+            if let Err(e) = search_and_print_process_info(clock_ticks) {
                 eprintln!("Error: {}", e);
             }
         }
     }
-}
+
