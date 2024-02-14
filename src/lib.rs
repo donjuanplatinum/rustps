@@ -35,21 +35,7 @@ pub struct ProcessStat{
     ///实际组
     rgid: Option<String>,
 }
-use std::fmt;
 
-impl fmt::Display for ProcessStat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PID: {:<8} PPID: {:<8} RSS: {:<8} VMPEAK: {:<8} STATE: {:<8} CPU%: {:.2} CMD: {}",
-               self.pid.unwrap_or(-1),
-               self.ppid.as_deref().unwrap_or("None"),
-               self.rss.as_deref().unwrap_or("None"),
-               self.vmpeak.as_deref().unwrap_or("None"),
-               self.state.as_deref().unwrap_or("None"),
-               self.cpu_use.unwrap_or(-1.0),
-               self.cmd.as_deref().unwrap_or("None")
-        )
-    }
-}
 
 impl Default for ProcessStat{
     fn default() ->ProcessStat  {
@@ -107,7 +93,7 @@ pub fn new_from_pid(pid: i32, cpu_frequency: f64) -> Result<ProcessStat, io::Err
     Ok(ProcessStat {
         pid: Some(pid),
         state: status_str.lines().nth(2).map(|line| line.trim_start_matches("State:").trim().to_string()),
-        cmd: Some(comm_str),
+        cmd: Some(comm_str.replace("\0","")),
         rss,
         ppid: status_str.lines().nth(6).map(|line| line.trim_start_matches("PPid:").trim().to_string()),
         cstime: stat_str.split_whitespace().nth(17).map(|line| line.to_string()),
@@ -117,8 +103,8 @@ pub fn new_from_pid(pid: i32, cpu_frequency: f64) -> Result<ProcessStat, io::Err
         stime: stat_str.split_whitespace().nth(14).map(|line| line.to_string()),
         cutime: stat_str.split_whitespace().nth(16).map(|line| line.to_string()),
         vmpeak,
-	ruid: status_str.lines().nth(8).map(|line| line.trim_start_matches("Uid:").trim().to_string()),
-	rgid: status_str.lines().nth(9).map(|line| line.trim_start_matches("Gid:").trim().to_string())
+	ruid: status_str.lines().nth(8).map(|line| line.trim_start_matches("Uid:").split_whitespace().next().unwrap().trim().to_string()),
+	rgid: status_str.lines().nth(9).map(|line| line.trim_start_matches("Gid:").split_whitespace().next().unwrap().trim().to_string())
     })
 }
 }
@@ -153,58 +139,36 @@ pub fn load_process_stats() -> Result<Vec<ProcessStat>, io::Error> {
 }
 /// 格式化输出进程信息表
 pub fn format_process_stats(process_stats: &[ProcessStat]) {
-    println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
-             "PID", "PPID", "RSS", "VMPEAK", "STATE", "CPU%", "CMD");
+    println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
+             "RUID", "PID", "PPID", "RSS", "VMPEAK", "STATE", "CPU%", "CMD");
     for process_stat in process_stats {
-        println!("{}", process_stat);
+        let pid = process_stat.pid.unwrap_or(-1); // 默认值为-1，如果没有pid，打印-1
+        let ppid = process_stat.ppid.as_ref().map_or("None", |s| s);
+        let rss = process_stat.rss.as_ref().map_or("None", |s| s);
+        let vmpeak = process_stat.vmpeak.as_ref().map_or("None", |s| s);
+        let state = process_stat.state.as_ref().map_or("None", |s| s);
+        let cpu_use = process_stat.cpu_use.unwrap_or(-1.0); // 默认值为-1.0，如果没有cpu_use，打印-1.0
+        let cmd = process_stat.cmd.as_ref().map_or("None", |s| s);
+        let ruid = process_stat.ruid.as_ref().map_or("unknow", |s| s);
+        println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
+                 ruid,pid, ppid, rss, vmpeak, state, cpu_use, cmd);
     }
 }
 ///打印一个进程信息
 pub fn format_one_process(pid: i32) -> Result<(), io::Error> {
     if let Ok(process_stat) = ProcessStat::new_from_pid(pid, get_cpu_frequency()?) {
-        println!("{}", process_stat);
+        let pid = process_stat.pid.unwrap_or(-1); // 默认值为-1，如果没有pid，打印-1
+        let ppid = process_stat.ppid.as_deref().unwrap_or("None");
+        let rss = process_stat.rss.as_deref().unwrap_or("None");
+        let vmpeak = process_stat.vmpeak.as_deref().unwrap_or("None");
+        let state = process_stat.state.as_deref().unwrap_or("None");
+        let cpu_use = process_stat.cpu_use.unwrap_or(-1.0); // 默认值为-1.0，如果没有cpu_use，打印-1.0
+        let cmd = process_stat.cmd.as_deref().unwrap_or("None");
+        println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
+                 pid, ppid, rss, vmpeak, state, cpu_use, cmd);
         Ok(())
     } else {
         Err(io::Error::new(io::ErrorKind::Other, "Failed to read process stats"))
-    }
-}
-
-pub fn human_readable_size(size: usize) -> String {
-    if size >= 1024 * 1024 * 1024 {
-        format!("{:.2} G", size as f64 / (1024 * 1024 * 1024) as f64)
-    } else if size >= 1024 * 1024 {
-        format!("{:.2} MB", size as f64 / (1024 * 1024) as f64)
-    } else if size >= 1024 {
-        format!("{:.2} KB", size as f64 / 1024.0)
-    } else {
-        format!("{} B", size)
-    }
-}
-
-use std::env;
-///获取命令行选项
-pub fn get_command_line_options() {
-    let args: Vec<String> = env::args().collect();
-
-    if args.contains(&"-h".to_string()) || args.contains(&"--help".to_string()) {
-        // 显示帮助信息
-        println!("Displaying help...");
-        // Add your help instructions here...
-    }
-
-    if args.contains(&"-m".to_string()) || args.contains(&"--memory".to_string()) {
-        // 处理 -m 选项
-        println!("Showing memory information...");
-    }
-
-    if args.contains(&"-n".to_string()) || args.contains(&"--name".to_string()) {
-        // 处理 -n 选项
-        println!("Showing process name...");
-    }
-
-    if args.contains(&"-d".to_string()) || args.contains(&"--details".to_string()) {
-        // 处理 -d 选项
-        println!("Showing detailed information...");
     }
 }
 
