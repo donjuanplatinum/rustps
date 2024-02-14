@@ -1,39 +1,56 @@
+use std::fmt::Debug;
 use std::fs;
 use std::io;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
 #[derive(Debug)]
-
+///进程
 pub struct ProcessStat{
-    //pid
+    ///pid
     pid: Option<i32>,
-    //进程占用的真实内存大小
+    ///进程占用的真实内存大小
     rss: Option<String>,
-    //调用命令的完整信息
+    ///调用命令的完整信息
     cmd: Option<String>,
-    //进程状态
+    ///进程状态
     state: Option<String>,
-    //父进程PID
+    ///父进程PID
     ppid: Option<String>,
-    //进程及其子进程被调度进内核态的时间,以jiffy为单位 1jiffy=1/100s
+    ///进程及其子进程被调度进内核态的时间,以jiffy为单位 1jiffy=1/100s
     cstime: Option<String>,
-    //进程及其子进程被调度进用户态的时间
+    ///进程及其子进程被调度进用户态的时间
     cutime: Option<String>,
-    //虚拟内存大小
+    ///虚拟内存大小
     vsize: Option<String>,
-    //cpu利用率
+    ///cpu利用率
     cpu_use: Option<f64>,
-    //进程进入用户态的时间(单位jiffy)
+    ///进程进入用户态的时间(单位jiffy)
     utime: Option<String>,
-    //进程进入内核态的时间
+    ///进程进入内核态的时间
     stime: Option<String>,
-    //内存占用峰值
+    ///内存占用峰值
     vmpeak: Option<String>,
-    //实际用户
+    ///实际用户
     ruid: Option<String>,
-    //实际组
+    ///实际组
     rgid: Option<String>,
 }
+use std::fmt;
+
+impl fmt::Display for ProcessStat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PID: {:<8} PPID: {:<8} RSS: {:<8} VMPEAK: {:<8} STATE: {:<8} CPU%: {:.2} CMD: {}",
+               self.pid.unwrap_or(-1),
+               self.ppid.as_deref().unwrap_or("None"),
+               self.rss.as_deref().unwrap_or("None"),
+               self.vmpeak.as_deref().unwrap_or("None"),
+               self.state.as_deref().unwrap_or("None"),
+               self.cpu_use.unwrap_or(-1.0),
+               self.cmd.as_deref().unwrap_or("None")
+        )
+    }
+}
+
 impl Default for ProcessStat{
     fn default() ->ProcessStat  {
 	ProcessStat { pid: None, rss: None, cmd: None, state: None, ppid: None, cstime: None, vsize: None , cpu_use: None, cutime: None, stime: None, utime: None, vmpeak: None, ruid: None,rgid: None}
@@ -106,7 +123,7 @@ pub fn new_from_pid(pid: i32, cpu_frequency: f64) -> Result<ProcessStat, io::Err
 }
 }
 
-//获取处理器频率并经算利用率
+///获取处理器频率
 pub fn get_cpu_frequency() -> io::Result<f64> {
     let cpu_frequency = fs::read_to_string("/proc/cpuinfo")?
         .lines()
@@ -117,6 +134,7 @@ pub fn get_cpu_frequency() -> io::Result<f64> {
     cpu_frequency.ok_or(io::Error::new(io::ErrorKind::Other, "Failed to read CPU MHz"))
 }
 
+///获取进程信息
 pub fn load_process_stats() -> Result<Vec<ProcessStat>, io::Error> {
     let mut process_stats: Vec<ProcessStat> = Vec::new();
     let entries = fs::read_dir("/proc")?;  // 读取/proc目录下的文件
@@ -133,21 +151,60 @@ pub fn load_process_stats() -> Result<Vec<ProcessStat>, io::Error> {
     }
     Ok(process_stats)
 }
-// 格式化输出进程信息表
-// 格式化输出进程信息表
+/// 格式化输出进程信息表
 pub fn format_process_stats(process_stats: &[ProcessStat]) {
     println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
              "PID", "PPID", "RSS", "VMPEAK", "STATE", "CPU%", "CMD");
     for process_stat in process_stats {
-        let pid = process_stat.pid.unwrap_or(-1); // 默认值为-1，如果没有pid，打印-1
-        let ppid = process_stat.ppid.as_ref().map_or("None", |s| s);
-        let rss = process_stat.rss.as_ref().map_or("None", |s| s);
-        let vmpeak = process_stat.vmpeak.as_ref().map_or("None", |s| s);
-        let state = process_stat.state.as_ref().map_or("None", |s| s);
-        let cpu_use = process_stat.cpu_use.unwrap_or(-1.0); // 默认值为-1.0，如果没有cpu_use，打印-1.0
-        let cmd = process_stat.cmd.as_ref().map_or("None", |s| s);
-
-        println!("{:<8} {:<8} {:<8} {:<8} {:<8} {:<8} {:<8}",
-                 pid, ppid, rss, vmpeak, state, cpu_use, cmd);
+        println!("{}", process_stat);
     }
 }
+///打印一个进程信息
+pub fn format_one_process(pid: i32) -> Result<(), io::Error> {
+    if let Ok(process_stat) = ProcessStat::new_from_pid(pid, get_cpu_frequency()?) {
+        println!("{}", process_stat);
+        Ok(())
+    } else {
+        Err(io::Error::new(io::ErrorKind::Other, "Failed to read process stats"))
+    }
+}
+
+pub fn human_readable_size(size: usize) -> String {
+    if size >= 1024 * 1024 * 1024 {
+        format!("{:.2} G", size as f64 / (1024 * 1024 * 1024) as f64)
+    } else if size >= 1024 * 1024 {
+        format!("{:.2} MB", size as f64 / (1024 * 1024) as f64)
+    } else if size >= 1024 {
+        format!("{:.2} KB", size as f64 / 1024.0)
+    } else {
+        format!("{} B", size)
+    }
+}
+
+use std::env;
+///获取命令行选项
+pub fn get_command_line_options() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.contains(&"-h".to_string()) || args.contains(&"--help".to_string()) {
+        // 显示帮助信息
+        println!("Displaying help...");
+        // Add your help instructions here...
+    }
+
+    if args.contains(&"-m".to_string()) || args.contains(&"--memory".to_string()) {
+        // 处理 -m 选项
+        println!("Showing memory information...");
+    }
+
+    if args.contains(&"-n".to_string()) || args.contains(&"--name".to_string()) {
+        // 处理 -n 选项
+        println!("Showing process name...");
+    }
+
+    if args.contains(&"-d".to_string()) || args.contains(&"--details".to_string()) {
+        // 处理 -d 选项
+        println!("Showing detailed information...");
+    }
+}
+
