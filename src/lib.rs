@@ -154,6 +154,8 @@ pub fn format_process_stats(process_stats: &[ProcessStat]) {
                  ruid,pid, ppid, rss, vmpeak, state, cpu_use, cmd);
     }
 }
+
+
 ///打印一个进程信息
 pub fn format_one_process(pid: i32) -> Result<(), io::Error> {
     if let Ok(process_stat) = ProcessStat::new_from_pid(pid, get_cpu_frequency()?) {
@@ -172,34 +174,3 @@ pub fn format_one_process(pid: i32) -> Result<(), io::Error> {
     }
 }
 
-pub fn handle_options(args: Vec<String>) {
-    let mut index = 0; // 初始化索引位置
-    while index < args.len() {
-        match args[index].as_str() {
-            "-h" => {
-                println!("Usage: {} -p pid -s [mem;pid;cpu] -r reverse sort", args[0]);
-                break; // 帮助信息显示后退出循环
-            }
-            "-p" => {
-                if let Some(pid_str) = args.get(index + 1) {
-                    if let Ok(pid) = pid_str.parse::<i32>() {
-                        let _ = format_one_process(pid);
-                    } else {
-                        println!("Invalid PID specified");
-                    }
-                } else {
-                    println!("PID not specified after -p option");
-                }
-                index += 2; // 跳过PID参数及对应的值
-            }
-            _ => {
-                if let Ok(process_stats) = load_process_stats() {
-                    format_process_stats(&process_stats);
-                } else {
-                    eprintln!("Failed to load process stats.");
-                }
-                break; // 处理完统计信息后退出循环
-            }
-        }
-    }
-}
